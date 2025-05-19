@@ -5,13 +5,18 @@ process towards more realistic images.
 
 import argparse
 import os
-
+import sys
 import numpy as np
 import torch as th
 import torch.distributed as dist
 import torch.nn.functional as F
 
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
 from guided_diffusion import dist_util, logger
+from datetime import datetime
 from guided_diffusion.script_util import (
     NUM_CLASSES,
     model_and_diffusion_defaults,
@@ -27,7 +32,9 @@ def main():
     args = create_argparser().parse_args()
 
     dist_util.setup_dist()
-    logger.configure()
+    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_dir = f"./output/{current_time}"
+    logger.configure(dir=output_dir)
 
     logger.log("creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(
@@ -69,9 +76,23 @@ def main():
     all_labels = []
     while len(all_images) * args.batch_size < args.num_samples:
         model_kwargs = {}
-        classes = th.randint(
-            low=0, high=NUM_CLASSES, size=(args.batch_size,), device=dist_util.dev()
-        )
+        
+        # Set the class labels for van and bike
+        van_class_label = 734  # Replace with the correct label for van
+        bike_class_label = 665  # Replace with the correct label for bike
+
+        # Calculate the number of van and bike samples in the batch
+        num_van = int(args.batch_size * 0.8)  # 80% van
+        num_bike = args.batch_size - num_van  # 20% bike
+
+        # Create a mixed batch of class labels
+        van_labels = th.full((num_van,), van_class_label, device=dist_util.dev(), dtype=th.long)
+        bike_labels = th.full((num_bike,), bike_class_label, device=dist_util.dev(), dtype=th.long)
+        classes = th.cat([van_labels, bike_labels], dim=0)
+
+        # Shuffle the labels to avoid ordering effects
+        classes = classes[th.randperm(classes.size(0))]
+
         model_kwargs["y"] = classes
         sample_fn = (
             diffusion.p_sample_loop if not args.use_ddim else diffusion.ddim_sample_loop
