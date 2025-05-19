@@ -1,9 +1,15 @@
 """
 Train a diffusion model on images.
 """
-
+import os
+import sys
 import argparse
 
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from datetime import datetime
 from guided_diffusion import dist_util, logger
 from guided_diffusion.image_datasets import load_data
 from guided_diffusion.resample import create_named_schedule_sampler
@@ -20,8 +26,11 @@ def main():
     args = create_argparser().parse_args()
 
     dist_util.setup_dist()
-    logger.configure()
-
+    last_dir_name = args.data_dir.rstrip('/').split('/')[-1]
+    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_dir = f"./diffusion_models/{last_dir_name}_{current_time}"
+    logger.configure(dir=output_dir)
+    
     logger.log("creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(
         **args_to_dict(args, model_and_diffusion_defaults().keys())
