@@ -4,14 +4,20 @@ Train a noised image classifier on ImageNet.
 
 import argparse
 import os
-
+import sys
 import blobfile as bf
 import torch as th
 import torch.distributed as dist
 import torch.nn.functional as F
+
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 from torch.optim import AdamW
 
+from datetime import datetime
 from guided_diffusion import dist_util, logger
 from guided_diffusion.fp16_util import MixedPrecisionTrainer
 from guided_diffusion.image_datasets import load_data
@@ -29,7 +35,10 @@ def main():
     args = create_argparser().parse_args()
 
     dist_util.setup_dist()
-    logger.configure()
+    last_dir_name = args.data_dir.rstrip('/').split('/')[-1]
+    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_dir = f"./classifier_models/{last_dir_name}_{current_time}"
+    logger.configure(dir=output_dir)
 
     logger.log("creating model and diffusion...")
     model, diffusion = create_classifier_and_diffusion(
