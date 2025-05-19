@@ -5,11 +5,17 @@ numpy array. This can be used to produce samples for FID evaluation.
 
 import argparse
 import os
+import sys
 
 import numpy as np
 import torch as th
 import torch.distributed as dist
 
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from datetime import datetime
 from guided_diffusion import dist_util, logger
 from guided_diffusion.script_util import (
     NUM_CLASSES,
@@ -24,7 +30,11 @@ def main():
     args = create_argparser().parse_args()
 
     dist_util.setup_dist()
-    logger.configure()
+    
+    last_dir_name = args.model_path.rstrip('/').split('/')[-2]
+    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_dir = f"./samples/{last_dir_name}_{current_time}"
+    logger.configure(dir=output_dir)
 
     logger.log("creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(
